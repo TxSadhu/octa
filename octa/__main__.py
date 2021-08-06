@@ -6,13 +6,14 @@ import click
 import socket
 from .tcp_service import ports
 from .top_ports import top_1000_ports
-from scapy.all import ICMP, IP, sr1, TCP
+from scapy.all import ICMP, IP, sr1, TCP, UDP
 
 
 # Define end host and TCP port range
 # host = "45.33.32.156"
 class bcolors:
     OKGREEN = "\033[92m"
+    OKBLUE = "\033[94m"
     WARNING = "\033[93m"
     FAIL = "\033[91m"
     ENDC = "\033[0m"
@@ -45,15 +46,14 @@ def portscan(host, dst_port):
         timeout=1,
         verbose=0,
     )
-    try:
-        if str(type(resp)) == "<type 'NoneType'>":
-            print(
-                f"{bcolors.WARNING}{dst_port}/filtered{bcolors.ENDC}"
-                + " ["
-                + portservice(str(dst_port))
-                + "]"
-            )
+    resp_udp = sr1(
+        IP(dst=host) / UDP(sport=src_port, dport=dst_port), timeout=10, verbose=0
+    )
 
+    # TCP
+    try:
+        if resp == None:
+            pass
         elif resp.haslayer(TCP):
             if resp.getlayer(TCP).flags == 0x12:
                 # Send a gratuitous RST to close the connection
@@ -63,7 +63,7 @@ def portscan(host, dst_port):
                     verbose=0,
                 )
                 print(
-                    f"{bcolors.OKGREEN}{dst_port}/open{bcolors.ENDC}"
+                    f"{bcolors.OKGREEN}[TCP] {dst_port}/open{bcolors.ENDC}"
                     + " ["
                     + portservice(str(dst_port))
                     + "]"
@@ -71,6 +71,13 @@ def portscan(host, dst_port):
 
             elif resp.getlayer(TCP).flags == 0x14:
                 pass
+            else:
+                print(
+                    f"{bcolors.WARNING}[TCP] {dst_port}/filtered{bcolors.ENDC}"
+                    + " ["
+                    + portservice(str(dst_port))
+                    + "]"
+                )
 
         elif resp.haslayer(ICMP):
             if int(resp.getlayer(ICMP).type) == 3 and int(resp.getlayer(ICMP).code) in [
@@ -82,11 +89,24 @@ def portscan(host, dst_port):
                 13,
             ]:
                 print(
-                    f"{bcolors.WARNING}{dst_port}/filtered{bcolors.ENDC}"
+                    f"{bcolors.WARNING}[TCP] {dst_port}/filtered{bcolors.ENDC}"
                     + " ["
                     + portservice(str(dst_port))
                     + "]"
                 )
+    except:
+        pass
+
+    # UDP
+    try:
+        if resp_udp == None:
+            print(f"{bcolors.OKBLUE}[UDP] {dst_port}/open{bcolors.ENDC}")
+        elif resp_udp.haslayer(ICMP):
+            pass
+        elif resp_udp.haslayer(UDP):
+            print(f"{bcolors.OKBLUE}[UDP] {dst_port}/open{bcolors.ENDC}")
+        else:
+            pass
     except:
         pass
 
