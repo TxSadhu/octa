@@ -5,7 +5,7 @@ import random
 import click
 import socket
 from .tcp_service import ports
-from .top_ports import top_1000_ports
+from .top_ports import top_1000_tcp_ports, top_1000_udp_ports
 from scapy.all import ICMP, IP, sr1, TCP, UDP
 
 
@@ -39,15 +39,12 @@ def portservice(p):
 
 
 # Send SYN with random Src Port for each Dst port
-def portscan(host, dst_port):
+def portscan_tcp(host, dst_port):
     src_port = random.randint(1025, 65534)
     resp = sr1(
         IP(dst=host) / TCP(sport=src_port, dport=dst_port, flags="S"),
         timeout=1,
         verbose=0,
-    )
-    resp_udp = sr1(
-        IP(dst=host) / UDP(sport=src_port, dport=dst_port), timeout=10, verbose=0
     )
 
     # TCP
@@ -97,6 +94,13 @@ def portscan(host, dst_port):
     except:
         pass
 
+
+def portscan_udp(host, dst_port):
+    src_port = random.randint(1025, 65534)
+    resp_udp = sr1(
+        IP(dst=host) / UDP(sport=src_port, dport=dst_port), timeout=10, verbose=0
+    )
+
     # UDP
     try:
         if resp_udp == None:
@@ -114,15 +118,29 @@ def portscan(host, dst_port):
 @click.command()
 @click.option("--ip", "-ip", prompt="Enter an IP address", help="Enter your IP address")
 @click.option("--port", "-p", help="Enter your port to scan")
-def scan(ip, port):
+@click.option("--tcp", "-pT", help="Scan TCP")
+@click.option("--udp", "-pU", help="Scan UDP")
+def scan(ip, port, tcp, udp):
     click.echo(version())
     if os.geteuid() == 0:
         ip = socket.gethostbyname(ip)
         if not port:
-            for prt in top_1000_ports:
-                portscan(ip, int(prt))
+            if tcp and udp:
+                portscan_tcp(ip, int(tcp))
+                portscan_udp(ip, int(udp))
+            elif tcp:
+                portscan_tcp(ip, int(tcp))
+            elif udp:
+                portscan_udp(ip, int(udp))
+            else:
+                for prt in top_1000_tcp_ports:
+                    portscan_tcp(ip, int(prt))
+                for prt in top_1000_udp_ports:
+                    portscan_udp(ip, int(prt))
         else:
-            portscan(ip, int(port))
+            portscan_tcp(ip, int(port))
+            portscan_udp(ip, int(port))
+
     else:
         print(
             f"{bcolors.WARNING}[ERROR] Scan stopped, please run as root{bcolors.ENDC}"
